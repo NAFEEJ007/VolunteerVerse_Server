@@ -11,23 +11,19 @@ dotenv.config();
 // 2) Otherwise build credentials from FIREBASE_* environment variables (private key must have \n encoded).
 
 try {
-    const configPath = path.join(__dirname, 'serviceAccountKey.json');
+    // Try environment variables first (for Vercel)
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-    if (fs.existsSync(configPath)) {
-        // Load service account file (recommended for local development)
-        const serviceAccount = require(configPath);
-        admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
-        });
-        console.log('Firebase Admin Initialized from serviceAccountKey.json');
-    } else {
-        // Fallback to environment variables
+    if (projectId && clientEmail && privateKey) {
+        // Initialize from environment variables
         const serviceAccount = {
             type: 'service_account',
-            project_id: process.env.FIREBASE_PROJECT_ID,
+            project_id: projectId,
             private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-            private_key: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined,
-            client_email: process.env.FIREBASE_CLIENT_EMAIL,
+            private_key: privateKey.replace(/\\n/g, '\n'),
+            client_email: clientEmail,
             client_id: process.env.FIREBASE_CLIENT_ID,
             auth_uri: 'https://accounts.google.com/o/oauth2/auth',
             token_uri: 'https://oauth2.googleapis.com/token',
@@ -35,18 +31,28 @@ try {
             client_x509_cert_url: process.env.FIREBASE_CLIENT_CERT_URL
         };
 
-        if (serviceAccount.project_id && serviceAccount.private_key && serviceAccount.client_email) {
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+        console.log('Firebase Admin Initialized from environment variables');
+    } else {
+        // Fallback to local file for development
+        const configPath = path.join(__dirname, 'serviceAccountKey.json');
+
+        if (fs.existsSync(configPath)) {
+            const serviceAccount = require(configPath);
             admin.initializeApp({
                 credential: admin.credential.cert(serviceAccount)
             });
-            console.log('Firebase Admin Initialized from environment variables');
+            console.log('Firebase Admin Initialized from serviceAccountKey.json');
         } else {
-            console.warn('Firebase Admin NOT Initialized: Missing environment variables or service account file');
+            throw new Error('Firebase credentials not found in environment variables or service account file');
         }
     }
 
 } catch (error) {
     console.error('Firebase Admin Initialization Error:', error);
+    console.error('Make sure FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY are set correctly');
 }
 
 module.exports = admin;
