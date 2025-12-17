@@ -52,6 +52,12 @@ app.use('/api/admin', adminRoutes);
 
 app.get('/', systemController.healthCheck);
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+// Export the app for Vercel
+module.exports = app;
+
+// Only listen if not running in Vercel (Vercel handles this)
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}
