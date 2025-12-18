@@ -7,6 +7,7 @@ const path = require('path');
 dotenv.config({ path: path.join(__dirname, '.env') });
 console.log('DEBUG: MONGODB_URI is', process.env.MONGODB_URI);
 
+const connectDB = require('./config/db');
 const systemController = require('./controllers/systemController');
 
 
@@ -17,15 +18,40 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Database Connection
-mongoose.connect(process.env.MONGODB_URI)
-    .then(async () => {
+// Database Connection Middleware
+// Ensure DB is connected before handling any API requests
+app.use('/api', async (req, res, next) => {
+    try {
+        await connectDB();
+        next();
+    } catch (error) {
+        console.error('Database connection failed:', error);
+        res.status(503).json({
+            error: 'Database connection failed',
+            message: 'Service temporarily unavailable'
+        });
+    }
+});
+
+// Initialize database connection and system
+let isInitialized = false;
+async function initialize() {
+    if (isInitialized) return;
+
+    try {
+        await connectDB();
         console.log('MongoDB Connected');
 
         // Initialize system (create admin user, etc.)
         await systemController.initializeSystem();
-    })
-    .catch(err => console.log(err));
+        isInitialized = true;
+    } catch (err) {
+        console.error('Initialization error:', err);
+    }
+}
+
+// Start initialization (non-blocking)
+initialize();
 
 // Routes
 const userRoutes = require('./routes/userRoutes');
